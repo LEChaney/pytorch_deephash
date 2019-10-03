@@ -14,10 +14,10 @@ import torch.optim.lr_scheduler
 
 
 parser = argparse.ArgumentParser(description='Deep Hashing')
-parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
-                    help='learning rate (default: 0.01)')
-parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
-                    help='SGD momentum (default: 0.9)')
+parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
+                    help='learning rate (default: 1e-3)')
+# parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
+#                     help='SGD momentum (default: 0.9)')
 parser.add_argument('--epoch', type=int, default=128, metavar='epoch',
                     help='epoch')
 parser.add_argument('--pretrained', type=int, default=0, metavar='pretrained_model',
@@ -37,11 +37,11 @@ transform_train = transforms.Compose(
      transforms.RandomCrop(227),
      transforms.RandomHorizontalFlip(),
      transforms.ToTensor(),
-     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 transform_test = transforms.Compose(
     [transforms.Resize(227),
      transforms.ToTensor(),
-     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 trainset = datasets.CIFAR10(root='./data', train=True, download=True,
                             transform=transform_train)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=128,
@@ -61,9 +61,9 @@ if use_cuda:
 
 MSELoss = nn.MSELoss().cuda()
 
-optimizer4nn = torch.optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=0.0005)
+optimizer = torch.optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-5)
 
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer4nn, milestones=[64], gamma=0.1)
+#scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[64], gamma=0.1)
 
 def train(epoch):
     print('\nEpoch: %d' % epoch)
@@ -75,11 +75,11 @@ def train(epoch):
         inputs, targets = Variable(inputs), Variable(targets)
         _, outputs = net(inputs)
         loss = MSELoss(outputs, targets)
-        optimizer4nn.zero_grad()
+        optimizer.zero_grad()
 
         loss.backward()
 
-        optimizer4nn.step()
+        optimizer.step()
 
         train_loss += loss.item()
 
@@ -108,7 +108,8 @@ def test():
 
     if not os.path.exists(args.dc_path):
         os.mkdir(args.dc_path)
-    save_image(outputs.cpu().data, os.path.join(args.dc_path, 'image_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
+    save_image(inputs.cpu().data, os.path.join(args.dc_path, 'inputs_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
+    save_image(outputs.cpu().data, os.path.join(args.dc_path, 'outputs_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
 
 if __name__ == '__main__':
     torch.multiprocessing.freeze_support()
@@ -121,4 +122,4 @@ if __name__ == '__main__':
         for epoch in range(start_epoch, start_epoch+args.epoch):
             train(epoch)
             test()
-            scheduler.step()
+            #scheduler.step()
