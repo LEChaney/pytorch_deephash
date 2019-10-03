@@ -26,6 +26,8 @@ parser.add_argument('--bits', type=int, default=48, metavar='bts',
                     help='binary bits')
 parser.add_argument('--path', type=str, default='model_unsupervised', metavar='P',
                     help='path directory')
+parser.add_argument('--dc_path', type=str, default='dc_img', metavar='OP',
+                    help='output path for decoded images')
 args = parser.parse_args()
 
 best_acc = 0
@@ -62,12 +64,6 @@ MSELoss = nn.MSELoss().cuda()
 optimizer4nn = torch.optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=0.0005)
 
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer4nn, milestones=[64], gamma=0.1)
-
-def to_img(x):
-    x = 0.5 * (x + 1)
-    x = x.clamp(0, 1)
-    x = x.view(x.size(0), 1, 28, 28)
-    return x
 
 def train(epoch):
     print('\nEpoch: %d' % epoch)
@@ -109,8 +105,10 @@ def test():
         if not os.path.isdir('{}'.format(args.path)):
             os.mkdir('{}'.format(args.path))
         torch.save(net.state_dict(), './{}/{}'.format(args.path, test_loss/(batch_idx+1)))
-        pic = to_img(outputs.cpu().data)
-        save_image(pic, './dc_img/image_{}.png'.format(epoch))
+
+    if not os.path.exists(args.dc_path):
+        os.mkdir(args.dc_path)
+    save_image(outputs.cpu().data, os.path.join(args.dc_path, 'image_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
 
 if __name__ == '__main__':
     torch.multiprocessing.freeze_support()
