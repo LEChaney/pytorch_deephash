@@ -114,13 +114,15 @@ def test():
             os.mkdir('{}'.format(args.path))
         torch.save(net.state_dict(), './{}/{}'.format(args.path, acc))
 
-if args.pretrained:
-    net.load_state_dict(torch.load('./{}/{}'.format(args.path, args.pretrained)))
-    test()
-else:
-    if os.path.isdir('{}'.format(args.path)):
-        shutil.rmtree('{}'.format(args.path))
-    for epoch in range(start_epoch, start_epoch+args.epoch):
-        train(epoch)
+if __name__ == '__main__':
+    torch.multiprocessing.freeze_support()
+    if args.pretrained:
+        net.load_state_dict(torch.load('./{}/{}'.format(args.path, args.pretrained)))
         test()
-        scheduler.step()
+    else:
+        if os.path.isdir('{}'.format(args.path)):
+            shutil.rmtree('{}'.format(args.path))
+        for epoch in range(start_epoch, start_epoch+args.epoch):
+            train(epoch)
+            test()
+            scheduler.step()
