@@ -22,11 +22,11 @@ parser.add_argument('--epoch', type=int, default=128, metavar='epoch',
                     help='epoch')
 parser.add_argument('--pretrained', type=int, default=0, metavar='pretrained_model',
                     help='loading pretrained model(default = None)')
-parser.add_argument('--bits', type=int, default=48, metavar='bts',
+parser.add_argument('--bits', type=int, default=128, metavar='bts',
                     help='binary bits')
 parser.add_argument('--path', type=str, default='model_unsupervised', metavar='P',
                     help='path directory')
-parser.add_argument('--dc_path', type=str, default='dc_img', metavar='OP',
+parser.add_argument('--dc_path', type=str, default='dc_img', metavar='DP',
                     help='output path for decoded images')
 args = parser.parse_args()
 
@@ -63,7 +63,7 @@ MSELoss = nn.MSELoss().cuda()
 
 optimizer = torch.optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-5)
 
-#scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[64], gamma=0.1)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[64], gamma=0.1)
 
 def train(epoch):
     print('\nEpoch: %d' % epoch)
@@ -72,7 +72,7 @@ def train(epoch):
     for batch_idx, (inputs, _) in enumerate(trainloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), inputs.cuda()
-        inputs, targets = Variable(inputs), Variable(targets)
+        inputs, targets = Variable(inputs), nn.Upsample(size=128, mode='bilinear')(Variable(targets))
         _, outputs = net(inputs)
         loss = MSELoss(outputs, targets)
         optimizer.zero_grad()
@@ -93,7 +93,7 @@ def test():
     for batch_idx, (inputs, _) in enumerate(testloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), inputs.cuda()
-        inputs, targets = Variable(inputs), Variable(targets)
+        inputs, targets = Variable(inputs), nn.Upsample(size=128, mode='bilinear')(Variable(targets))
         _, outputs = net(inputs)
         loss = MSELoss(outputs, targets)
         test_loss += loss.item()
@@ -108,7 +108,7 @@ def test():
 
     if not os.path.exists(args.dc_path):
         os.mkdir(args.dc_path)
-    save_image(inputs.cpu().data, os.path.join(args.dc_path, 'inputs_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
+    save_image(targets.cpu().data, os.path.join(args.dc_path, 'inputs_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
     save_image(outputs.cpu().data, os.path.join(args.dc_path, 'outputs_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
 
 if __name__ == '__main__':
@@ -122,4 +122,4 @@ if __name__ == '__main__':
         for epoch in range(start_epoch, start_epoch+args.epoch):
             train(epoch)
             test()
-            #scheduler.step()
+            scheduler.step()
