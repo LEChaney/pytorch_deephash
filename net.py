@@ -29,9 +29,9 @@ class AutoencoderPlusLatent(nn.Module):
         self.remain = nn.Sequential(*list(alexnet_model.classifier.children())[:-1])
         self.Linear1 = nn.Linear(4096, self.bits)
         self.sigmoid = nn.Sigmoid()
-        self.lrelu = nn.LeakyReLU(0.2, True)
         
         # Decoder
+        self.lrelu = nn.LeakyReLU(0.2, True)
         self.fc1 = nn.Linear(self.bits, 4096)
         self.fc2 = nn.Linear(4096, 4096)
         self.fc3 = nn.Linear(4096, 4096)
