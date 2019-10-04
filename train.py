@@ -11,57 +11,6 @@ from torchvision import datasets, models, transforms
 from torch.autograd import Variable
 import torch.optim.lr_scheduler
 
-
-parser = argparse.ArgumentParser(description='Deep Hashing')
-parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
-                    help='learning rate (default: 0.01)')
-parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
-                    help='SGD momentum (default: 0.9)')
-parser.add_argument('--epoch', type=int, default=128, metavar='epoch',
-                    help='epoch')
-parser.add_argument('--pretrained', type=int, default=0, metavar='pretrained_model',
-                    help='loading pretrained model(default = None)')
-parser.add_argument('--bits', type=int, default=48, metavar='bts',
-                    help='binary bits')
-parser.add_argument('--path', type=str, default='model', metavar='P',
-                    help='path directory')
-args = parser.parse_args()
-
-best_acc = 0
-start_epoch = 1
-transform_train = transforms.Compose(
-    [transforms.Resize(256),
-     transforms.RandomCrop(227),
-     transforms.RandomHorizontalFlip(),
-     transforms.ToTensor(),
-     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
-transform_test = transforms.Compose(
-    [transforms.Resize(227),
-     transforms.ToTensor(),
-     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
-trainset = datasets.CIFAR10(root='./data', train=True, download=True,
-                            transform=transform_train)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=128,
-                                          shuffle=True, num_workers=2)
-
-testset = datasets.CIFAR10(root='./data', train=False, download=True,
-                           transform=transform_test)
-testloader = torch.utils.data.DataLoader(testset, batch_size=100,
-                                         shuffle=True, num_workers=2)
-
-net = AlexNetPlusLatent(args.bits)
-
-use_cuda = torch.cuda.is_available()
-
-if use_cuda:
-    net.cuda()
-
-softmaxloss = nn.CrossEntropyLoss().cuda()
-
-optimizer4nn = torch.optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=0.0005)
-
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer4nn, milestones=[64], gamma=0.1)
-
 def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
@@ -116,6 +65,57 @@ def test():
 
 if __name__ == '__main__':
     torch.multiprocessing.freeze_support()
+
+    parser = argparse.ArgumentParser(description='Deep Hashing')
+    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+                        help='learning rate (default: 0.01)')
+    parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
+                        help='SGD momentum (default: 0.9)')
+    parser.add_argument('--epoch', type=int, default=128, metavar='epoch',
+                        help='epoch')
+    parser.add_argument('--pretrained', type=int, default=0, metavar='pretrained_model',
+                        help='loading pretrained model(default = None)')
+    parser.add_argument('--bits', type=int, default=48, metavar='bts',
+                        help='binary bits')
+    parser.add_argument('--path', type=str, default='model', metavar='P',
+                        help='path directory')
+    args = parser.parse_args()
+
+    best_acc = 0
+    start_epoch = 1
+    transform_train = transforms.Compose(
+        [transforms.Resize(256),
+        transforms.RandomCrop(227),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+    transform_test = transforms.Compose(
+        [transforms.Resize(227),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+    trainset = datasets.CIFAR10(root='./data', train=True, download=True,
+                                transform=transform_train)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=128,
+                                            shuffle=True, num_workers=2)
+
+    testset = datasets.CIFAR10(root='./data', train=False, download=True,
+                            transform=transform_test)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=100,
+                                            shuffle=True, num_workers=2)
+
+    net = AlexNetPlusLatent(args.bits)
+
+    use_cuda = torch.cuda.is_available()
+
+    if use_cuda:
+        net.cuda()
+
+    softmaxloss = nn.CrossEntropyLoss().cuda()
+
+    optimizer4nn = torch.optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=0.0005)
+
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer4nn, milestones=[64], gamma=0.1)
+
     if args.pretrained:
         net.load_state_dict(torch.load('./{}/{}'.format(args.path, args.pretrained)))
         test()

@@ -5,6 +5,12 @@ from torch.autograd import Variable
 
 alexnet_model = models.alexnet(pretrained=True)
 
+# Weight init for leaky relu
+def lrelu_weight_init(layer):
+    if isinstance(layer, nn.Linear) or isinstance(layer, nn.ConvTranspose2d):
+        torch.nn.init.xavier_uniform_(layer.weight, gain=nn.init.calculate_gain('leaky_relu', 0.2))
+        torch.nn.init.zeros_(layer.bias)
+
 class AlexNetPlusLatent(nn.Module):
     def __init__(self, bits):
         super(AlexNetPlusLatent, self).__init__()
@@ -33,10 +39,14 @@ class AutoencoderPlusLatent(nn.Module):
         self.sigmoid = nn.Sigmoid()
         
         # Decoder
-        self.lrelu = nn.LeakyReLU(0.2, True)
-        self.fc1 = nn.Linear(self.bits, 4096)
-        self.fc2 = nn.Linear(4096, 4096)
-        self.fc3 = nn.Linear(4096, 4096)
+        self.fc_decoder = nn.Sequential(
+            nn.Linear(self.bits, 4096),
+            nn.LeakyReLU(0.2, True),
+            nn.Linear(4096, 4096),
+            nn.LeakyReLU(0.2, True),
+            nn.Linear(4096, 4096),
+            nn.LeakyReLU(0.2, True),
+        )
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(256, 256, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(0.2, True),
@@ -50,6 +60,16 @@ class AutoencoderPlusLatent(nn.Module):
             nn.Tanh()
         )
 
+    def init_weights(self):
+        # Weight Init
+        torch.nn.init.xavier_uniform_(self.Linear1.weight, gain=nn.init.calculate_gain('sigmoid'))
+        torch.nn.init.zeros_(self.Linear1.bias)
+        self.fc_decoder.apply(lrelu_weight_init)
+        self.decoder.apply(lrelu_weight_init)
+        torch.nn.init.xavier_uniform_(self.decoder[-2].weight, gain=nn.init.calculate_gain('tanh'))
+        torch.nn.init.zeros_(self.decoder[-2].bias)
+        print(self.decoder[-2])
+
     def forward(self, x):
         x = self.features(x)
         x = x.view(x.size(0), 256 * 6 * 6)
@@ -58,12 +78,7 @@ class AutoencoderPlusLatent(nn.Module):
         features = self.sigmoid(x)
         
         # Decoder
-        d = self.fc1(features)
-        d = self.lrelu(d)
-        d = self.fc2(d)
-        d = self.lrelu(d)
-        d = self.fc3(d)
-        d = self.lrelu(d)
+        d = self.fc_decoder(features)
         d = d.view(d.size(0), 256, 4, 4)
         result = self.decoder(d)
 
@@ -72,7 +87,7 @@ class AutoencoderPlusLatent(nn.Module):
 class VAELoss(nn.Module):
     def __init__(self):
         super(VAELoss, self).__init__()
-        self.mse_loss = nn.MSELoss(reduction="sum")
+        self.mse_loss = nn.MSELoss()
     def forward(self, recon_x, x, mu, logvar):
         MSE = self.mse_loss(recon_x, x)
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2)-logvar.exp())
@@ -92,10 +107,14 @@ class VAEPlusLatent(nn.Module):
         self.logvar = nn.Linear(self.bits, self.bits)
         
         # Decoder
-        self.lrelu = nn.LeakyReLU(0.2, True)
-        self.fc1 = nn.Linear(self.bits, 4096)
-        self.fc2 = nn.Linear(4096, 4096)
-        self.fc3 = nn.Linear(4096, 4096)
+        self.fc_decoder = nn.Sequential(
+            nn.Linear(self.bits, 4096),
+            nn.LeakyReLU(0.2, True),
+            nn.Linear(4096, 4096),
+            nn.LeakyReLU(0.2, True),
+            nn.Linear(4096, 4096),
+            nn.LeakyReLU(0.2, True),
+        )
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(256, 256, kernel_size=4, stride=2, padding=1),
             nn.LeakyReLU(0.2, True),
@@ -108,6 +127,19 @@ class VAEPlusLatent(nn.Module):
             nn.ConvTranspose2d(32, 3, kernel_size=4, stride=2, padding=1),
             nn.Tanh()
         )
+
+    def init_weights(self):
+        # Weight Init
+        torch.nn.init.xavier_uniform_(self.Linear1.weight, gain=nn.init.calculate_gain('sigmoid'))
+        torch.nn.init.zeros_(self.Linear1.bias)
+        torch.nn.init.xavier_uniform_(self.mu.weight, gain=1)
+        torch.nn.init.zeros_(self.mu.bias)
+        torch.nn.init.xavier_uniform_(self.logvar.weight, gain=1)
+        torch.nn.init.zeros_(self.logvar.bias)
+        self.fc_decoder.apply(lrelu_weight_init)
+        self.decoder.apply(lrelu_weight_init)
+        torch.nn.init.xavier_uniform_(self.decoder[-2].weight, gain=nn.init.calculate_gain('tanh'))
+        torch.nn.init.zeros_(self.decoder[-2].bias)
 
     def reparameterize(self, mu, logvar):
         std = logvar.mul(0.5).exp_()
@@ -128,12 +160,7 @@ class VAEPlusLatent(nn.Module):
         z = self.reparameterize(mu, logvar)
         
         # Decoder
-        d = self.fc1(z)
-        d = self.lrelu(d)
-        d = self.fc2(d)
-        d = self.lrelu(d)
-        d = self.fc3(d)
-        d = self.lrelu(d)
+        d = self.fc_decoder(z)
         d = d.view(d.size(0), 256, 4, 4)
         result = self.decoder(d)
 
