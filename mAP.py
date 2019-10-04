@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 
 from torchvision import datasets, models, transforms
+from torchvision.utils import save_image
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
 import torch.optim.lr_scheduler
@@ -40,27 +41,28 @@ def load_data():
                                transform=transform_test)
     testloader = torch.utils.data.DataLoader(testset, batch_size=100,
                                              shuffle=False, num_workers=2)
-    return trainloader, testloader
+    return trainloader, testloader, trainset, testset
 
 def binary_output(dataloader):
-    net = AlexNetPlusLatent(args.bits)
-    net.load_state_dict(torch.load('./model/%d' %args.pretrained))
-    use_cuda = torch.cuda.is_available()
-    if use_cuda:
-        net.cuda()
-    full_batch_output = torch.cuda.FloatTensor()
-    full_batch_label = torch.cuda.LongTensor()
-    net.eval()
-    for batch_idx, (inputs, targets) in enumerate(dataloader):
+    with torch.no_grad():
+        net = AlexNetPlusLatent(args.bits)
+        net.load_state_dict(torch.load('./model/%d' %args.pretrained))
+        use_cuda = torch.cuda.is_available()
         if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda()
-        inputs, targets = Variable(inputs, volatile=True), Variable(targets)
-        outputs, _ = net(inputs)
-        full_batch_output = torch.cat((full_batch_output, outputs.data), 0)
-        full_batch_label = torch.cat((full_batch_label, targets.data), 0)
-    return torch.round(full_batch_output), full_batch_label
+            net.cuda()
+        full_batch_output = torch.cuda.FloatTensor()
+        full_batch_label = torch.cuda.LongTensor()
+        net.eval()
+        for batch_idx, (inputs, targets) in enumerate(dataloader):
+            if use_cuda:
+                inputs, targets = inputs.cuda(), targets.cuda()
+            inputs, targets = Variable(inputs), Variable(targets)
+            outputs, _ = net(inputs)
+            full_batch_output = torch.cat((full_batch_output, outputs.data), 0)
+            full_batch_label = torch.cat((full_batch_label, targets.data), 0)
+        return torch.round(full_batch_output), full_batch_label
 
-def precision(trn_binary, trn_label, tst_binary, tst_label):
+def precision(trn_binary, trn_label, trainset, tst_binary, tst_label, testset):
     trn_binary = trn_binary.cpu().numpy()
     trn_binary = np.asarray(trn_binary, np.int32)
     trn_label = trn_label.cpu().numpy()
@@ -81,6 +83,20 @@ def precision(trn_binary, trn_label, tst_binary, tst_label):
         buffer_yes= np.equal(query_label, trn_label[sort_indices]).astype(int)
         P = np.cumsum(buffer_yes) / Ns
         AP[i] = np.sum(P * buffer_yes) /sum(buffer_yes)
+        
+        # Save query results
+        if (i % 100 == 0):
+            query_image, _ = testset[i]
+            query_image = query_image.cpu().view(1, 3, 227, 227)
+            retrieval_results = query_image
+            for j, idx in enumerate(sort_indices):
+                if j == 10:
+                    break
+                sort_image, _ = trainset[idx]
+                sort_image = sort_image.cpu().view(1, 3, 227, 227)
+                retrieval_results = torch.cat((retrieval_results, sort_image), 0)
+            print(retrieval_results.shape)
+            save_image(retrieval_results, './result/query_{}.png'.format(i+1), normalize=True, range=(-1, 1))
     map = np.mean(AP)
     print(map)
     print('total query time = ', time.time() - total_time_start)
@@ -96,7 +112,7 @@ if __name__ == '__main__':
         test_label = torch.load('./result/test_label')
 
     else:
-        trainloader, testloader = load_data()
+        trainloader, testloader, trainset, testset = load_data()
         train_binary, train_label = binary_output(trainloader)
         test_binary, test_label = binary_output(testloader)
         if not os.path.isdir('result'):
@@ -106,5 +122,4 @@ if __name__ == '__main__':
         torch.save(test_binary, './result/test_binary')
         torch.save(test_label, './result/test_label')
 
-
-    precision(train_binary, train_label, test_binary, test_label)
+    precision(train_binary, train_label, trainset, test_binary, test_label, testset)
