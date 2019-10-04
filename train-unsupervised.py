@@ -5,7 +5,7 @@ import argparse
 import torch
 import torch.nn as nn
 
-from net import AlexNetPlusLatent, AutoencoderPlusLatent
+from net import VAEPlusLatent, AutoencoderPlusLatent, VAELoss
 
 from torchvision import datasets, models, transforms
 from torchvision.utils import save_image
@@ -28,6 +28,8 @@ parser.add_argument('--path', type=str, default='model_unsupervised', metavar='P
                     help='path directory')
 parser.add_argument('--dc_path', type=str, default='dc_img', metavar='DP',
                     help='output path for decoded images')
+parser.add_argument('--variational', action='store_true',
+                    help='Use a Variational Autoencoder instead of a regular one')
 args = parser.parse_args()
 
 best_acc = 0
@@ -52,14 +54,18 @@ testset = datasets.CIFAR10(root='./data', train=False, download=True,
 testloader = torch.utils.data.DataLoader(testset, batch_size=100,
                                          shuffle=True, num_workers=2)
 
-net = AutoencoderPlusLatent(args.bits)
+if args.variational:
+    net = VAEPlusLatent(args.bits)
+    Loss = VAELoss()
+else:
+    net = AutoencoderPlusLatent(args.bits)
+    Loss = nn.MSELoss()
 
 use_cuda = torch.cuda.is_available()
 
 if use_cuda:
     net.cuda()
-
-MSELoss = nn.MSELoss().cuda()
+    Loss = Loss.cuda()
 
 optimizer = torch.optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-5)
 
@@ -73,12 +79,18 @@ def train(epoch):
         if use_cuda:
             inputs, targets = inputs.cuda(), inputs.cuda()
         inputs, targets = Variable(inputs), nn.Upsample(size=128, mode='bilinear')(Variable(targets))
-        _, outputs = net(inputs)
-        loss = MSELoss(outputs, targets)
+
+        # Forward
+        if (args.variational):
+            _, outputs, mu, logvar = net(inputs)
+            loss = Loss(outputs, targets, mu, logvar)
+        else:
+            _, outputs = net(inputs)
+            loss = Loss(outputs, targets)
+
+        # Backward
         optimizer.zero_grad()
-
         loss.backward()
-
         optimizer.step()
 
         train_loss += loss.item()
@@ -94,8 +106,15 @@ def test():
         if use_cuda:
             inputs, targets = inputs.cuda(), inputs.cuda()
         inputs, targets = Variable(inputs), nn.Upsample(size=128, mode='bilinear')(Variable(targets))
-        _, outputs = net(inputs)
-        loss = MSELoss(outputs, targets)
+
+        # Forward
+        if (args.variational):
+            _, outputs, mu, logvar = net(inputs)
+            loss = Loss(outputs, targets, mu, logvar)
+        else:
+            _, outputs = net(inputs)
+            loss = Loss(outputs, targets)
+
         test_loss += loss.item()
 
         print(batch_idx, len(testloader), 'Loss: %.3f'
