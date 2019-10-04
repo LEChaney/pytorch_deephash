@@ -95,7 +95,7 @@ def precision(trn_binary, trn_label, trainset, tst_binary, tst_label, testset):
                 sort_image, _ = trainset[idx]
                 sort_image = sort_image.cpu().view(1, 3, 227, 227)
                 retrieval_results = torch.cat((retrieval_results, sort_image), 0)
-            print(retrieval_results.shape)
+            print('Saving query result')
             save_image(retrieval_results, './result/query_{}.png'.format(i+1), normalize=True, range=(-1, 1))
     map = np.mean(AP)
     print(map)
