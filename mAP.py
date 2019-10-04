@@ -3,7 +3,7 @@ import argparse
 
 import numpy as np
 from scipy.spatial.distance import hamming, cdist
-from net import AlexNetPlusLatent
+from net import AlexNetPlusLatent, AutoencoderPlusLatent
 
 from timeit import time
 
@@ -25,13 +25,13 @@ args = parser.parse_args()
 
 def load_data():
     transform_train = transforms.Compose(
-        [transforms.Scale(227),
+        [transforms.Resize(227),
          transforms.ToTensor(),
-         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     transform_test = transforms.Compose(
-        [transforms.Scale(227),
+        [transforms.Resize(227),
          transforms.ToTensor(),
-         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     trainset = datasets.CIFAR10(root='./data', train=True, download=True,
                                 transform=transform_train)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=100,
@@ -45,7 +45,7 @@ def load_data():
 
 def binary_output(dataloader):
     with torch.no_grad():
-        net = AlexNetPlusLatent(args.bits)
+        net = AutoencoderPlusLatent(args.bits)
         net.load_state_dict(torch.load('./model/%d' %args.pretrained))
         use_cuda = torch.cuda.is_available()
         if use_cuda:
@@ -96,7 +96,7 @@ def precision(trn_binary, trn_label, trainset, tst_binary, tst_label, testset):
                 sort_image = sort_image.cpu().view(1, 3, 227, 227)
                 retrieval_results = torch.cat((retrieval_results, sort_image), 0)
             print('Saving query result')
-            save_image(retrieval_results, './result/query_{}.png'.format(i+1), normalize=True, range=(-1, 1))
+            save_image(retrieval_results, './result/query_{}.png'.format(i+1), nrow=11, normalize=True, range=(-1, 1))
     map = np.mean(AP)
     print(map)
     print('total query time = ', time.time() - total_time_start)
