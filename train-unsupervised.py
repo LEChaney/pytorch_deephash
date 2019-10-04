@@ -18,7 +18,11 @@ def train(epoch):
     for batch_idx, (inputs, _) in enumerate(trainloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), inputs.cuda()
+            noise = torch.cuda.FloatTensor(inputs.shape).normal_() * torch.cuda.FloatTensor(inputs.shape).uniform_(to=0.5)
+        else:
+            noise = torch.randn(inputs.shape) * torch.rand(inputs.shape) * 0.5
         inputs, targets = Variable(inputs), nn.Upsample(size=128, mode='bilinear')(Variable(targets))
+        inputs += noise
 
         # Forward
         if (args.variational):
@@ -40,7 +44,11 @@ def test():
     for batch_idx, (inputs, _) in enumerate(testloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), inputs.cuda()
+            noise = torch.cuda.FloatTensor(inputs.shape).normal_() * torch.cuda.FloatTensor(inputs.shape).uniform_(to=0.5)
+        else:
+            noise = torch.randn(inputs.shape) * torch.rand(inputs.shape) * 0.5
         inputs, targets = Variable(inputs), nn.Upsample(size=128, mode='bilinear')(Variable(targets))
+        inputs += noise
 
         # Forward
         if (args.variational):
@@ -59,7 +67,7 @@ def test():
 
     if not os.path.exists(args.dc_path):
         os.mkdir(args.dc_path)
-    save_image(targets.cpu().data, os.path.join(args.dc_path, 'inputs_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
+    save_image(inputs.cpu().data, os.path.join(args.dc_path, 'inputs_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
     save_image(outputs.cpu().data, os.path.join(args.dc_path, 'outputs_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
 
 if __name__ == '__main__':
@@ -71,7 +79,7 @@ if __name__ == '__main__':
                         help='learning rate (default: 5e-4)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
-    parser.add_argument('--epoch', type=int, default=128, metavar='epoch',
+    parser.add_argument('--epoch', type=int, default=16, metavar='epoch',
                         help='epoch')
     parser.add_argument('--pretrained', type=int, default=0, metavar='pretrained_model',
                         help='loading pretrained model(default = None)')
@@ -123,7 +131,7 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-5)
 
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[64], gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[8], gamma=0.1)
 
     # net.init_weights()
     if args.pretrained:
