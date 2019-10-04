@@ -15,7 +15,6 @@ import torch.optim.lr_scheduler
 def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
-    train_loss = 0
     for batch_idx, (inputs, _) in enumerate(trainloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), inputs.cuda()
@@ -34,15 +33,10 @@ def train(epoch):
         loss.backward()
         optimizer.step()
 
-        train_loss += loss.item()
-
-        print(batch_idx, len(trainloader), 'Loss: %.3f'
-            % (train_loss/(batch_idx+1)))
-    return train_loss/(batch_idx+1)
+        print(batch_idx, len(trainloader), 'Loss: %.3f' % loss.item())
 
 def test():
     net.eval()
-    test_loss = 0
     for batch_idx, (inputs, _) in enumerate(testloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), inputs.cuda()
@@ -56,15 +50,12 @@ def test():
             _, outputs = net(inputs)
             loss = Loss(outputs, targets)
 
-        test_loss += loss.item()
-
-        print(batch_idx, len(testloader), 'Loss: %.3f'
-            % (test_loss/(batch_idx+1)))
+        print(batch_idx, len(testloader), 'Loss: %.3f' % loss.item())
     if epoch == args.epoch:
         print('Saving')
         if not os.path.isdir('{}'.format(args.path)):
             os.mkdir('{}'.format(args.path))
-        torch.save(net.state_dict(), './{}/{}'.format(args.path, test_loss/(batch_idx+1)))
+        torch.save(net.state_dict(), './{}/{}'.format(args.path, loss.item()))
 
     if not os.path.exists(args.dc_path):
         os.mkdir(args.dc_path)
@@ -73,12 +64,13 @@ def test():
 
 if __name__ == '__main__':
     torch.multiprocessing.freeze_support()
+    torch.manual_seed(2)
 
     parser = argparse.ArgumentParser(description='Deep Hashing')
-    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
-                        help='learning rate (default: 1e-3)')
-    # parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
-    #                     help='SGD momentum (default: 0.9)')
+    parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
+                        help='learning rate (default: 5e-4)')
+    parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
+                        help='SGD momentum (default: 0.9)')
     parser.add_argument('--epoch', type=int, default=128, metavar='epoch',
                         help='epoch')
     parser.add_argument('--pretrained', type=int, default=0, metavar='pretrained_model',
@@ -92,8 +84,6 @@ if __name__ == '__main__':
     parser.add_argument('--variational', action='store_true',
                         help='Use a Variational Autoencoder instead of a regular one')
     args = parser.parse_args()
-
-    torch.manual_seed(2)
 
     best_acc = 0
     start_epoch = 1
@@ -135,7 +125,7 @@ if __name__ == '__main__':
 
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[64], gamma=0.1)
 
-    net.init_weights()
+    # net.init_weights()
     if args.pretrained:
         net.load_state_dict(torch.load('./{}/{}'.format(args.path, args.pretrained)))
         test()
