@@ -34,7 +34,7 @@ class AutoencoderPlusLatent(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
         # Freeze alexnet layers
-        for child in chain(self.features.children(), self.remain.children()):
+        for child in list(chain(self.features.children(), self.remain.children()))[:-2]:
             print('Freezing layer:', child)
             for param in child.parameters():
                 param.requires_grad = False
@@ -160,7 +160,7 @@ class VAEPlusLatent(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
         # Freeze alexnet layers
-        for child in chain(self.features.children(), self.remain.children()):
+        for child in list(chain(self.features.children(), self.remain.children()))[:-2]:
             for param in child.parameters():
                 param.requires_grad = False
 
