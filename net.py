@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch
 from torchvision import models
 from torch.autograd import Variable
+from itertools import chain
 
 alexnet_model = models.alexnet(pretrained=True)
 
@@ -31,6 +32,12 @@ class AutoencoderPlusLatent(nn.Module):
         self.remain = nn.Sequential(*list(alexnet_model.classifier.children())[:-1])
         self.Linear1 = nn.Linear(4096, self.bits)
         self.sigmoid = nn.Sigmoid()
+
+        # Freeze alexnet layers
+        for child in chain(self.features.children(), self.remain.children()):
+            print('Freezing layer:', child)
+            for param in child.parameters():
+                param.requires_grad = False
         
         # Decoder
         self.fc_decoder = nn.Sequential(
@@ -151,6 +158,11 @@ class VAEPlusLatent(nn.Module):
         self.remain = nn.Sequential(*list(alexnet_model.classifier.children())[:-1])
         self.Linear1 = nn.Linear(4096, self.bits)
         self.sigmoid = nn.Sigmoid()
+
+        # Freeze alexnet layers
+        for child in chain(self.features.children(), self.remain.children()):
+            for param in child.parameters():
+                param.requires_grad = False
 
         # Variational
         # self.mu = nn.Linear(self.bits, self.bits)
