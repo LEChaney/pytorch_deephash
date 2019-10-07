@@ -27,11 +27,11 @@ def load_data():
     transform_train = transforms.Compose(
         [transforms.Resize(227),
          transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
     transform_test = transforms.Compose(
         [transforms.Resize(227),
          transforms.ToTensor(),
-         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
     trainset = datasets.CIFAR10(root='./data', train=True, download=True,
                                 transform=transform_train)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=100,
@@ -43,10 +43,23 @@ def load_data():
                                              shuffle=False, num_workers=2)
     return trainloader, testloader, trainset, testset
 
+def inv_normalize(y):
+    mean = torch.tensor((0.4914, 0.4822, 0.4465))
+    std = torch.tensor((0.2023, 0.1994, 0.2010))
+    x = y.new(*y.size())
+    x[:, 0, :, :] = y[:, 0, :, :] * std[0] + mean[0]
+    x[:, 1, :, :] = y[:, 1, :, :] * std[1] + mean[1]
+    x[:, 2, :, :] = y[:, 2, :, :] * std[2] + mean[2]
+    return x
+
 def binary_output(dataloader):
     with torch.no_grad():
-        net = AutoencoderPlusLatent(args.bits)
-        net.load_state_dict(torch.load('./model/%d' %args.pretrained))
+        try:
+            net = AlexNetPlusLatent(args.bits)
+            net.load_state_dict(torch.load('./model/%d' %args.pretrained))
+        except:
+            net = AutoencoderPlusLatent(args.bits)
+            net.load_state_dict(torch.load('./model/%d' %args.pretrained))
         use_cuda = torch.cuda.is_available()
         if use_cuda:
             net.cuda()
@@ -96,7 +109,7 @@ def precision(trn_binary, trn_label, trainset, tst_binary, tst_label, testset):
                 sort_image = sort_image.cpu().view(1, 3, 227, 227)
                 retrieval_results = torch.cat((retrieval_results, sort_image), 0)
             print('Saving query result')
-            save_image(retrieval_results, './result/query_{}.png'.format(i+1), nrow=11, normalize=True, range=(-1, 1))
+            save_image(inv_normalize(retrieval_results), './result/query_{}.png'.format(i+1), nrow=11, normalize=False)
     map = np.mean(AP)
     print(map)
     print('total query time = ', time.time() - total_time_start)

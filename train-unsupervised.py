@@ -18,11 +18,11 @@ def train(epoch):
     for batch_idx, (inputs, _) in enumerate(trainloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), inputs.cuda()
-            noise = torch.cuda.FloatTensor(inputs.shape).normal_() * torch.cuda.FloatTensor(inputs.shape).uniform_(to=0.5)
-        else:
-            noise = torch.randn(inputs.shape) * torch.rand(inputs.shape) * 0.5
+            # noise = torch.cuda.FloatTensor(inputs.shape).normal_() * torch.cuda.FloatTensor(inputs.shape).uniform_(to=0.5)
+        # else:
+        #     noise = torch.randn(inputs.shape) * torch.rand(inputs.shape) * 0.5
         inputs, targets = Variable(inputs), nn.Upsample(size=128, mode='bilinear')(Variable(targets))
-        inputs += noise
+        # inputs += noise
 
         # Forward
         if (args.variational):
@@ -39,16 +39,25 @@ def train(epoch):
 
         print(batch_idx, len(trainloader), 'Loss: %.3f' % loss.item())
 
+def inv_normalize(y):
+    mean = torch.tensor((0.4914, 0.4822, 0.4465))
+    std = torch.tensor((0.2023, 0.1994, 0.2010))
+    x = y.new(*y.size())
+    x[:, 0, :, :] = y[:, 0, :, :] * std[0] + mean[0]
+    x[:, 1, :, :] = y[:, 1, :, :] * std[1] + mean[1]
+    x[:, 2, :, :] = y[:, 2, :, :] * std[2] + mean[2]
+    return x
+
 def test():
     net.eval()
     for batch_idx, (inputs, _) in enumerate(testloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), inputs.cuda()
-            noise = torch.cuda.FloatTensor(inputs.shape).normal_() * torch.cuda.FloatTensor(inputs.shape).uniform_(to=0.5)
-        else:
-            noise = torch.randn(inputs.shape) * torch.rand(inputs.shape) * 0.5
+            # noise = torch.cuda.FloatTensor(inputs.shape).normal_() * torch.cuda.FloatTensor(inputs.shape).uniform_(to=0.5)
+        # else:
+        #     noise = torch.randn(inputs.shape) * torch.rand(inputs.shape) * 0.5
         inputs, targets = Variable(inputs), nn.Upsample(size=128, mode='bilinear')(Variable(targets))
-        inputs += noise
+        # inputs += noise
 
         # Forward
         if (args.variational):
@@ -67,8 +76,8 @@ def test():
 
     if not os.path.exists(args.dc_path):
         os.mkdir(args.dc_path)
-    save_image(inputs.cpu().data, os.path.join(args.dc_path, 'inputs_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
-    save_image(outputs.cpu().data, os.path.join(args.dc_path, 'outputs_{}.png'.format(epoch)), normalize=True, range=(-1, 1))
+    save_image(inv_normalize(inputs.cpu()).data, os.path.join(args.dc_path, 'inputs_{}.png'.format(epoch)), normalize=False)
+    save_image(inv_normalize(outputs.cpu()).data, os.path.join(args.dc_path, 'outputs_{}.png'.format(epoch)), normalize=False)
 
 if __name__ == '__main__':
     torch.multiprocessing.freeze_support()
@@ -100,11 +109,11 @@ if __name__ == '__main__':
         transforms.RandomCrop(227),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
     transform_test = transforms.Compose(
         [transforms.Resize(227),
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
     trainset = datasets.CIFAR10(root='./data', train=True, download=True,
                                 transform=transform_train)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=128,

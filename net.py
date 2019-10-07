@@ -5,12 +5,6 @@ from torch.autograd import Variable
 
 alexnet_model = models.alexnet(pretrained=True)
 
-# # Weight init for leaky relu
-# def lrelu_weight_init(layer):
-#     if isinstance(layer, nn.Linear) or isinstance(layer, nn.ConvTranspose2d):
-#         torch.nn.init.xavier_uniform_(layer.weight, gain=nn.init.calculate_gain('leaky_relu', 0.2))
-#         torch.nn.init.zeros_(layer.bias)
-
 class AlexNetPlusLatent(nn.Module):
     def __init__(self, bits):
         super(AlexNetPlusLatent, self).__init__()
@@ -51,31 +45,25 @@ class AutoencoderPlusLatent(nn.Module):
             nn.BatchNorm1d(4096)
         )
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(256, 256, kernel_size=4, stride=2, padding=1),
+            nn.Upsample(size=16, mode='bilinear', align_corners=True),
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
             nn.ReLU(True),
             nn.BatchNorm2d(256),
-            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),
+            nn.Upsample(size=16, mode='bilinear', align_corners=True),
+            nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1),
             nn.ReLU(True),
             nn.BatchNorm2d(128),
-            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
+            nn.Upsample(size=32, mode='bilinear', align_corners=True),
+            nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(True),
             nn.BatchNorm2d(64),
-            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
+            nn.Upsample(size=64, mode='bilinear', align_corners=True),
+            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(True),
             nn.BatchNorm2d(32),
-            nn.ConvTranspose2d(32, 3, kernel_size=4, stride=2, padding=1),
-            nn.Tanh()
+            nn.Upsample(size=128, mode='bilinear', align_corners=True),
+            nn.Conv2d(32, 3, kernel_size=3, stride=1, padding=1)
         )
-
-    # def init_weights(self):
-    #     # Weight Init
-    #     torch.nn.init.xavier_uniform_(self.Linear1.weight, gain=nn.init.calculate_gain('sigmoid'))
-    #     torch.nn.init.zeros_(self.Linear1.bias)
-    #     self.fc_decoder.apply(lrelu_weight_init)
-    #     self.decoder.apply(lrelu_weight_init)
-    #     torch.nn.init.xavier_uniform_(self.decoder[-2].weight, gain=nn.init.calculate_gain('tanh'))
-    #     torch.nn.init.zeros_(self.decoder[-2].bias)
-    #     print(self.decoder[-2])
 
     def forward(self, x):
         x = self.features(x)
@@ -90,6 +78,61 @@ class AutoencoderPlusLatent(nn.Module):
         result = self.decoder(d)
 
         return features, result
+
+# class Decoder(nn.Module):
+#     def __init__(self, bits):
+#         super(Decoder, self).__init__()
+#         self.fc_decoder = nn.Sequential(
+#             nn.Linear(self.bits, 4096),
+#             nn.ReLU(True),
+#             nn.BatchNorm1d(4096),
+#             nn.Linear(4096, 4096),
+#             nn.ReLU(True),
+#             nn.BatchNorm1d(4096),
+#             nn.Linear(4096, 4096),
+#             nn.ReLU(True),
+#             nn.BatchNorm1d(4096)
+#         )
+#         self.decoder = nn.Sequential(
+#             nn.ConvTranspose2d(256, 256, kernel_size=4, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.BatchNorm2d(256),
+#             nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.BatchNorm2d(128),
+#             nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.BatchNorm2d(64),
+#             nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
+#             nn.ReLU(True),
+#             nn.BatchNorm2d(32),
+#             nn.ConvTranspose2d(32, 3, kernel_size=4, stride=2, padding=1),
+#             nn.Tanh()
+#         )
+
+#     def forward(self, x):
+#         # Decoder
+#         d = self.fc_decoder(x)
+#         d = d.view(d.size(0), 256, 4, 4)
+#         return self.decoder(d)
+
+# class GANLoss(nn.Module):
+#     def __init__
+
+# class Discriminator(nn.Module):
+#     def __init__(self, bits):
+#         super(Discriminator, self).__init__()
+#         self.bits = bits
+#         self.features = nn.Sequential(*list(alexnet_model.features.children()))
+#         self.remain = nn.Sequential(*list(alexnet_model.classifier.children())[:-1])
+#         self.fc1 = nn.Linear(4096, 1)
+#         self.sigmoid = nn.Sigmoid()
+#     def forward(self, x):
+#         x = self.features(x)
+#         x = x.view(x.size(0), 256 * 6 * 6)
+#         x = self.remain(x)
+#         x = self.fc1(x)
+#         return self.sigmoid(x)
 
 class VAELoss(nn.Module):
     def __init__(self):
@@ -116,44 +159,35 @@ class VAEPlusLatent(nn.Module):
         # Decoder
         self.fc_decoder = nn.Sequential(
             nn.Linear(self.bits, 4096),
-            nn.LeakyReLU(0.2, True),
+            nn.ReLU(True),
             nn.BatchNorm1d(4096),
             nn.Linear(4096, 4096),
-            nn.LeakyReLU(0.2, True),
+            nn.ReLU(True),
             nn.BatchNorm1d(4096),
             nn.Linear(4096, 4096),
-            nn.LeakyReLU(0.2, True),
+            nn.ReLU(True),
             nn.BatchNorm1d(4096)
         )
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(256, 256, kernel_size=4, stride=2, padding=1),
-            nn.LeakyReLU(0.2, True),
+            nn.Upsample(size=16, mode='bilinear', align_corners=True),
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
             nn.BatchNorm2d(256),
-            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),
-            nn.LeakyReLU(0.2, True),
+            nn.Upsample(size=16, mode='bilinear', align_corners=True),
+            nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
             nn.BatchNorm2d(128),
-            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
-            nn.LeakyReLU(0.2, True),
+            nn.Upsample(size=32, mode='bilinear', align_corners=True),
+            nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
             nn.BatchNorm2d(64),
-            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
-            nn.LeakyReLU(0.2, True),
+            nn.Upsample(size=64, mode='bilinear', align_corners=True),
+            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(True),
             nn.BatchNorm2d(32),
-            nn.ConvTranspose2d(32, 3, kernel_size=4, stride=2, padding=1),
-            nn.Tanh()
+            nn.Upsample(size=128, mode='bilinear', align_corners=True),
+            nn.Conv2d(32, 3, kernel_size=3, stride=1, padding=1)
         )
-
-    # def init_weights(self):
-    #     # Weight Init
-    #     torch.nn.init.xavier_uniform_(self.Linear1.weight, gain=nn.init.calculate_gain('sigmoid'))
-    #     torch.nn.init.zeros_(self.Linear1.bias)
-    #     torch.nn.init.xavier_uniform_(self.mu.weight, gain=1)
-    #     torch.nn.init.zeros_(self.mu.bias)
-    #     torch.nn.init.xavier_uniform_(self.logvar.weight, gain=1)
-    #     torch.nn.init.zeros_(self.logvar.bias)
-    #     self.fc_decoder.apply(lrelu_weight_init)
-    #     self.decoder.apply(lrelu_weight_init)
-    #     torch.nn.init.xavier_uniform_(self.decoder[-2].weight, gain=nn.init.calculate_gain('tanh'))
-    #     torch.nn.init.zeros_(self.decoder[-2].bias)
 
     def reparameterize(self, mu, logvar):
         if self.training:
